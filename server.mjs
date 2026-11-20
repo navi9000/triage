@@ -11,41 +11,77 @@ function json(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
+function isNonEmptyString(input) {
+  return typeof input === "string" && input.trim() !== ""
+}
+
+function isTopicValid(input) {
+  return ["delivery", "pricing", "other"].includes(input)
+}
+
+class InvalidInputError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = "InvalidInputError"
+  }
+}
+
+class InvalidModelResponseError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = "InvalidModelResponseError"
+  }
+}
+
+class ModelTimeoutExceededError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = "ModelTimeoutExceededError"
+  }
+}
+
 async function handleTriage(request, response) {
   try {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
+    if (!chunks.length) {
+      throw new InvalidInputError()
+    }
     const { text } = JSON.parse(Buffer.concat(chunks).toString("utf8"))
-    if (!text || !text.trim()) {
-      return json(response, 400, { status: "invalid_input" })
+    console.log({ text })
+    if (!isNonEmptyString(text)) {
+      throw new InvalidInputError()
     }
     const abortController = new AbortController()
 
     setTimeout(() => {
       abortController.abort()
+      throw new ModelTimeoutExceededError()
     }, 300)
 
     const result = JSON.parse(
       await classify(text, { signal: abortController.signal }),
     )
 
-    if (
-      ["delivery", "pricing", "other"].includes(result.topic) &&
-      result.draft.trim()
-    ) {
-      return json(response, 200, { status: "ready", ...result })
+    if (!isTopicValid(result.topic) || !isNonEmptyString(result.draft)) {
+      throw new InvalidModelResponseError()
     }
-    return json(response, 200, {
-      status: "manual_review",
-      topic: null,
-      draft: null,
-    })
-  } catch {
-    return json(response, 200, {
-      status: "manual_review",
-      topic: null,
-      draft: null,
-    })
+    return json(response, 200, { status: "ready", ...result })
+  } catch (error) {
+    if (error instanceof InvalidInputError) {
+      return json(response, 400, { status: "invalid_input" })
+    }
+    if (
+      error instanceof InvalidModelResponseError ||
+      error instanceof ModelTimeoutExceededError
+    ) {
+      return json(response, 200, {
+        status: "manual_review",
+        topic: null,
+        draft: null,
+      })
+    }
+    throw error
   }
 }
 
