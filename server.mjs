@@ -48,25 +48,34 @@ async function handleTriage(request, response) {
       throw new InvalidInputError()
     }
     const { text } = JSON.parse(Buffer.concat(chunks).toString("utf8"))
-    console.log({ text })
     if (!isNonEmptyString(text)) {
       throw new InvalidInputError()
     }
     const abortController = new AbortController()
+    let timeoutId
+    const timeout = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        abortController.abort()
+        reject(new ModelTimeoutExceededError())
+      }, 300)
+    })
 
-    setTimeout(() => {
-      abortController.abort()
-      throw new ModelTimeoutExceededError()
-    }, 300)
+    let result
+    try {
+      result = JSON.parse(
+        await Promise.race([
+          classify(text, { signal: abortController.signal }),
+          timeout,
+        ]),
+      )
 
-    const result = JSON.parse(
-      await classify(text, { signal: abortController.signal }),
-    )
-
-    if (!isTopicValid(result.topic) || !isNonEmptyString(result.draft)) {
-      throw new InvalidModelResponseError()
+      if (!isTopicValid(result.topic) || !isNonEmptyString(result.draft)) {
+        throw new InvalidModelResponseError()
+      }
+      return json(response, 200, { status: "ready", ...result })
+    } finally {
+      clearTimeout(timeoutId)
     }
-    return json(response, 200, { status: "ready", ...result })
   } catch (error) {
     if (error instanceof InvalidInputError) {
       return json(response, 400, { status: "invalid_input" })

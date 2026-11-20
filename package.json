@@ -1,0 +1,25 @@
+{
+  "name": "triage",
+  "version": "1.0.0",
+  "description": "Ориентир — 45–60 минут. Менеджер вводит текст заявки, получает тему и черновик ответа. Он читает результат и сам решает, что отправить клиенту.",
+  "main": "server.test.js",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/navi9000/triage.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/navi9000/triage/issues"
+  },
+  "homepage": "https://github.com/navi9000/triage#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6"
+  }
+}
